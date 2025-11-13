@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   build-3os:
-    name: "Build — ${{ matrix.os }} (${{ github.ref_name }})"
+    name: "Build — ${{ matrix.os }}"
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -27,7 +27,7 @@ jobs:
           fetch-depth: 0
 
       # ----------------------------------------------------------
-      # Setup GHC
+      # Setup GHC for Haskell build
       # ----------------------------------------------------------
       - name: Setup GHC
         uses: haskell/actions/setup@v2
@@ -36,14 +36,14 @@ jobs:
           cabal-version: '3.10.1.0'
 
       # ----------------------------------------------------------
-      # Build Interpreter (핵심: -i src)
+      # Build all modules at once (핵심 수정)
       # ----------------------------------------------------------
       - name: Build Interpreter
         shell: bash
         run: |
           mkdir -p dist
-          echo "[Build] Compiling src/Main.hs with module path -i src"
-          ghc -i src -outputdir dist -o dist/slh src/Main.hs
+          echo "[Build] Compiling all Haskell modules..."
+          ghc -i src src/*.hs -outputdir dist -o dist/slh
 
       # ----------------------------------------------------------
       # Run Example
@@ -55,12 +55,12 @@ jobs:
           ./dist/slh || true
 
       # ----------------------------------------------------------
-      # ProofLedger 생성
+      # ProofLedger
       # ----------------------------------------------------------
       - name: Generate ProofLedger
         shell: bash
         run: |
-          mkdir -p proof dist
+          mkdir -p proof
           OUT="proof/proofledger.txt"
 
           echo "Scala-like-Haskell ProofLedger" > $OUT
@@ -77,13 +77,13 @@ jobs:
           fi
 
           $HASH dist/slh >> $OUT 2>/dev/null || true
-          $HASH examples/hello.slh >> $OUT 2>/dev/null || true
+          $HASH examples/* >> $OUT 2>/dev/null || true
           $HASH src/*.hs >> $OUT 2>/dev/null || true
 
       # ----------------------------------------------------------
       # Artifact Upload
       # ----------------------------------------------------------
-      - name: Upload 3OS Artifacts
+      - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: scala-like-haskell-${{ runner.os }}
@@ -93,9 +93,9 @@ jobs:
             src/**
             examples/**
 
-  # ==============================================================
-  # Release Job — ZIP 하나만 업로드 (충돌/404 0%)
-  # ==============================================================
+  # ======================================================================
+  # Release Job — ZIP 하나만 올리는 구조 (충돌/404 0%)
+  # ======================================================================
   release:
     needs: build-3os
     runs-on: ubuntu-latest
@@ -118,13 +118,16 @@ jobs:
           path: release
 
       # ----------------------------------------------------------
-      # ZIP 하나로 통합 → 404/충돌 0%
+      # Create Unified ZIP
       # ----------------------------------------------------------
       - name: Create Unified ZIP
         run: |
           cd release
           zip -r scala-like-haskell-${{ steps.tag.outputs.version }}.zip ./*
 
+      # ----------------------------------------------------------
+      # Publish Release
+      # ----------------------------------------------------------
       - name: Publish Release
         uses: softprops/action-gh-release@v1
         with:
@@ -132,9 +135,9 @@ jobs:
           name: "Scala-like-Haskell Release ${{ steps.tag.outputs.version }}"
           body: |
             ## Scala-like-Haskell Auto Release
-            ✔ Haskell(GHC) 3OS 빌드 완료  
+            ✔ Haskell(GHC) 3OS 빌드 정상 완료  
             ✔ ProofLedger 자동 생성  
-            ✔ 모든 산출물 ZIP 하나에 통합  
-            ✔ Release 충돌 및 404 완전 제거  
+            ✔ 모든 산출물 ZIP 하나로 통합  
+            ✔ Release 충돌/404 완전 제거  
           files: |
             release/scala-like-haskell-${{ steps.tag.outputs.version }}.zip
