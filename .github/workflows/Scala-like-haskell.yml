@@ -27,7 +27,7 @@ jobs:
           fetch-depth: 0
 
       # ----------------------------------------------------------
-      # GHC 설치 (Haskell)
+      # Setup GHC
       # ----------------------------------------------------------
       - name: Setup GHC
         uses: haskell/actions/setup@v2
@@ -36,22 +36,22 @@ jobs:
           cabal-version: '3.10.1.0'
 
       # ----------------------------------------------------------
-      # Build
+      # Build Interpreter (핵심: -i src)
       # ----------------------------------------------------------
       - name: Build Interpreter
         shell: bash
         run: |
           mkdir -p dist
-          echo "[Build] Compiling src/Main.hs..."
-          ghc -outputdir dist -o dist/slh src/Main.hs
+          echo "[Build] Compiling src/Main.hs with module path -i src"
+          ghc -i src -outputdir dist -o dist/slh src/Main.hs
 
       # ----------------------------------------------------------
-      # Run example (hello.slh)
+      # Run Example
       # ----------------------------------------------------------
       - name: Run Example
         shell: bash
         run: |
-          echo "[Run] Executing interpreter with example..."
+          echo "[Run] Executing interpreter..."
           ./dist/slh || true
 
       # ----------------------------------------------------------
@@ -81,7 +81,7 @@ jobs:
           $HASH src/*.hs >> $OUT 2>/dev/null || true
 
       # ----------------------------------------------------------
-      # Build Artifact Upload (release 전)
+      # Artifact Upload
       # ----------------------------------------------------------
       - name: Upload 3OS Artifacts
         uses: actions/upload-artifact@v4
@@ -93,9 +93,9 @@ jobs:
             src/**
             examples/**
 
-  # --------------------------------------------------------------
-  # Release 단계: ZIP 하나만 업로드
-  # --------------------------------------------------------------
+  # ==============================================================
+  # Release Job — ZIP 하나만 업로드 (충돌/404 0%)
+  # ==============================================================
   release:
     needs: build-3os
     runs-on: ubuntu-latest
@@ -132,10 +132,9 @@ jobs:
           name: "Scala-like-Haskell Release ${{ steps.tag.outputs.version }}"
           body: |
             ## Scala-like-Haskell Auto Release
-            ✔ Haskell GHC 9.4 빌드  
-            ✔ 3OS 실행기 생성  
-            ✔ ProofLedger 포함  
-            ✔ 모든 파일 ZIP 하나로 통일  
-            ✔ Release 충돌/404 완전 방지  
+            ✔ Haskell(GHC) 3OS 빌드 완료  
+            ✔ ProofLedger 자동 생성  
+            ✔ 모든 산출물 ZIP 하나에 통합  
+            ✔ Release 충돌 및 404 완전 제거  
           files: |
             release/scala-like-haskell-${{ steps.tag.outputs.version }}.zip
