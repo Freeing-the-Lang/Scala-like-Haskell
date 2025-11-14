@@ -38,15 +38,17 @@ jobs:
           mkdir -p dist
           echo "[Build] Compiling Haskell modules..."
 
-          # src 아래 .hs 파일만 안전하게 수집
+          # src 아래의 모든 .hs 파일 수집
           HS_FILES=$(find src -type f -name '*.hs' | tr '\n' ' ')
           if [ -z "$HS_FILES" ]; then
-            echo "[Warn] No .hs files found under src/, skipping GHC compile."
+            echo "[Warn] No .hs files found under src/"
             exit 0
           fi
 
           echo "[Build] Files: $HS_FILES"
-          ghc -i src $HS_FILES -outputdir dist -o dist/slh
+
+          # 핵심 수정!! -i src → -isrc
+          ghc -isrc $HS_FILES -outputdir dist -o dist/slh
 
       - name: Run Example
         if: runner.os != 'Windows'
@@ -102,7 +104,7 @@ jobs:
           VERSION="v1.$(date +%Y%m%d%H%M%S)"
           git tag "$VERSION"
           git push origin "$VERSION"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
@@ -112,7 +114,7 @@ jobs:
       - name: Create Unified ZIP
         run: |
           cd release
-          zip -r "scala-like-haskell-${{ steps.tag.outputs.version }}.zip" ./*
+          zip -r "Scala-like-Haskell-${{ steps.tag.outputs.version }}.zip" ./*
 
       - name: Publish Release
         uses: softprops/action-gh-release@v1
@@ -126,4 +128,4 @@ jobs:
             ✔ ZIP 단일 패키징  
             ✔ Release 충돌/404 완전 제거  
           files: |
-            release/scala-like-haskell-${{ steps.tag.outputs.version }}.zip
+            release/Scala-like-Haskell-${{ steps.tag.outputs.version }}.zip
