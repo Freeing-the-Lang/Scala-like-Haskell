@@ -37,7 +37,16 @@ jobs:
         run: |
           mkdir -p dist
           echo "[Build] Compiling Haskell modules..."
-          ghc -i src $(ls src/*.hs) -outputdir dist -o dist/slh
+
+          # src 아래 .hs 파일만 안전하게 수집
+          HS_FILES=$(find src -type f -name '*.hs' | tr '\n' ' ')
+          if [ -z "$HS_FILES" ]; then
+            echo "[Warn] No .hs files found under src/, skipping GHC compile."
+            exit 0
+          fi
+
+          echo "[Build] Files: $HS_FILES"
+          ghc -i src $HS_FILES -outputdir dist -o dist/slh
 
       - name: Run Example
         if: runner.os != 'Windows'
@@ -52,22 +61,22 @@ jobs:
           mkdir -p proof
           OUT="proof/proofledger-${{ runner.os }}.txt"
 
-          echo "Scala-like-Haskell ProofLedger" > $OUT
-          echo "OS: ${{ runner.os }}" >> $OUT
-          echo "Commit: $GITHUB_SHA" >> $OUT
-          echo "Timestamp: $(date)" >> $OUT
-          echo "" >> $OUT
-          echo "[SHA256 Checksums]" >> $OUT
+          echo "Scala-like-Haskell ProofLedger" > "$OUT"
+          echo "OS: ${{ runner.os }}" >> "$OUT"
+          echo "Commit: $GITHUB_SHA" >> "$OUT"
+          echo "Timestamp: $(date)" >> "$OUT"
+          echo "" >> "$OUT"
+          echo "[SHA256 Checksums]" >> "$OUT"
 
           if command -v sha256sum >/dev/null 2>&1; then
-            HASH="sha256sum"
+            sha256sum dist/* >> "$OUT" 2>/dev/null || true
+            sha256sum src/*.hs >> "$OUT" 2>/dev/null || true
+            sha256sum examples/* >> "$OUT" 2>/dev/null || true
           else
-            HASH="shasum -a 256"
+            shasum -a 256 dist/* >> "$OUT" 2>/dev/null || true
+            shasum -a 256 src/*.hs >> "$OUT" 2>/dev/null || true
+            shasum -a 256 examples/* >> "$OUT" 2>/dev/null || true
           fi
-
-          $HASH dist/* >> $OUT 2>/dev/null || true
-          $HASH src/*.hs >> $OUT 2>/dev/null || true
-          $HASH examples/* >> $OUT 2>/dev/null || true
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
@@ -91,9 +100,9 @@ jobs:
         id: tag
         run: |
           VERSION="v1.$(date +%Y%m%d%H%M%S)"
-          git tag $VERSION
-          git push origin $VERSION
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          git tag "$VERSION"
+          git push origin "$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT
 
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
@@ -103,7 +112,7 @@ jobs:
       - name: Create Unified ZIP
         run: |
           cd release
-          zip -r scala-like-haskell-${{ steps.tag.outputs.version }}.zip ./*
+          zip -r "scala-like-haskell-${{ steps.tag.outputs.version }}.zip" ./*
 
       - name: Publish Release
         uses: softprops/action-gh-release@v1
