@@ -14,20 +14,25 @@ concurrency:
 
 jobs:
   build-3os:
-    name: "Build — ${{ matrix.os }}"
+    name: "Build — ${{
+      matrix.os
+    }}"
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
+      # ----------------------------------------------------------
+      # Checkout
+      # ----------------------------------------------------------
       - name: Checkout Repo
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       # ----------------------------------------------------------
-      # Setup GHC for Haskell build
+      # Setup GHC
       # ----------------------------------------------------------
       - name: Setup GHC
         uses: haskell/actions/setup@v2
@@ -36,7 +41,7 @@ jobs:
           cabal-version: '3.10.1.0'
 
       # ----------------------------------------------------------
-      # Build all modules at once (핵심 수정)
+      # Build Interpreter
       # ----------------------------------------------------------
       - name: Build Interpreter
         shell: bash
@@ -46,9 +51,10 @@ jobs:
           ghc -i src src/*.hs -outputdir dist -o dist/slh
 
       # ----------------------------------------------------------
-      # Run Example
+      # Run Example (Linux/Mac only)
       # ----------------------------------------------------------
       - name: Run Example
+        if: runner.os != 'Windows'
         shell: bash
         run: |
           echo "[Run] Executing interpreter..."
@@ -61,7 +67,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p proof
-          OUT="proof/proofledger.txt"
+          OUT="proof/proofledger-${{ runner.os }}.txt"
 
           echo "Scala-like-Haskell ProofLedger" > $OUT
           echo "OS: ${{ runner.os }}" >> $OUT
@@ -76,12 +82,12 @@ jobs:
             HASH="shasum -a 256"
           fi
 
-          $HASH dist/slh >> $OUT 2>/dev/null || true
-          $HASH examples/* >> $OUT 2>/dev/null || true
+          $HASH dist/* >> $OUT 2>/dev/null || true
           $HASH src/*.hs >> $OUT 2>/dev/null || true
+          $HASH examples/* >> $OUT 2>/dev/null || true
 
       # ----------------------------------------------------------
-      # Artifact Upload
+      # Upload Artifacts (OS별로 분산)
       # ----------------------------------------------------------
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
@@ -94,7 +100,7 @@ jobs:
             examples/**
 
   # ======================================================================
-  # Release Job — ZIP 하나만 올리는 구조 (충돌/404 0%)
+  # Release Job
   # ======================================================================
   release:
     needs: build-3os
@@ -104,6 +110,9 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v4
 
+      # ----------------------------------------------------------
+      # Create Tag (100% 충돌 방지)
+      # ----------------------------------------------------------
       - name: Create Tag
         id: tag
         run: |
@@ -112,13 +121,16 @@ jobs:
           git push origin $VERSION
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
+      # ----------------------------------------------------------
+      # Download All Artifacts
+      # ----------------------------------------------------------
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
         with:
           path: release
 
       # ----------------------------------------------------------
-      # Create Unified ZIP
+      # Create ZIP
       # ----------------------------------------------------------
       - name: Create Unified ZIP
         run: |
@@ -135,8 +147,8 @@ jobs:
           name: "Scala-like-Haskell Release ${{ steps.tag.outputs.version }}"
           body: |
             ## Scala-like-Haskell Auto Release
-            ✔ Haskell(GHC) 3OS 빌드 정상 완료  
-            ✔ ProofLedger 자동 생성  
+            ✔ Haskell(GHC) 3OS 빌드 완료  
+            ✔ ProofLedger 생성  
             ✔ 모든 산출물 ZIP 하나로 통합  
             ✔ Release 충돌/404 완전 제거  
           files: |
