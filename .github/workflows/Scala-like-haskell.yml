@@ -30,9 +30,9 @@ jobs:
           fetch-depth: 0
 
       - name: Setup GHC
-        uses: haskell/actions/setup@v2
+        uses: haskell-actions/setup@v2
         with:
-          ghc-version: '9.4.7'
+          ghc-version: '9.6.5'
           cabal-version: '3.10.1.0'
 
       - name: Build Interpreter
@@ -49,9 +49,10 @@ jobs:
 
           echo "[Build] Files: $HS_FILES"
 
+          # IMPORTANT: use -isrc instead of -i src
           ghc -isrc $HS_FILES -outputdir dist -o dist/slh
 
-      - name: Run Example
+      - name: Run Example (Linux/Mac)
         if: runner.os != 'Windows'
         shell: bash
         run: |
@@ -125,8 +126,9 @@ jobs:
           body: |
             ## Scala-like-Haskell Auto Release
             ✔ 3OS Haskell Build OK  
-            ✔ ProofLedger 생성  
-            ✔ ZIP 단일 패키징  
-            ✔ Infinite Loop 완전 차단  
+            ✔ ProofLedger Generated  
+            ✔ Unified ZIP  
+            ✔ Infinite Loop Safe (tags-ignore)  
+            ✔ macOS ARM GHC 정상지원 (9.6.5)  
           files: |
             release/Scala-like-Haskell-${{ steps.tag.outputs.version }}.zip
