@@ -11,6 +11,10 @@ on:
 permissions:
   contents: write
 
+defaults:
+  run:
+    shell: bash   # 모든 OS에서 bash로 강제
+
 concurrency:
   group: scala-like-haskell-${{ github.ref }}
   cancel-in-progress: true
@@ -35,32 +39,29 @@ jobs:
           ghc-version: '9.6.5'
           cabal-version: '3.10.1.0'
 
-      - name: Build Interpreter
-        shell: bash
+      - name: Build Interpreter (GHC)
         run: |
           mkdir -p dist
           echo "[Build] Compiling Haskell modules..."
 
-          HS_FILES=$(find src -type f -name '*.hs' | tr '\n' ' ')
-          if [ -z "$HS_FILES" ]; then
+          # 안전한 파일 리스트 수집
+          mapfile -t HS_LIST < <(find src -type f -name '*.hs')
+          if [ "${#HS_LIST[@]}" -eq 0 ]; then
             echo "[Warn] No .hs files found under src/"
             exit 0
           fi
 
-          echo "[Build] Files: $HS_FILES"
+          echo "[Build] Files: ${HS_LIST[*]}"
 
-          # IMPORTANT: use -isrc instead of -i src
-          ghc -isrc $HS_FILES -outputdir dist -o dist/slh
+          ghc -isrc "${HS_LIST[@]}" -outputdir dist -o dist/slh
 
       - name: Run Example (Linux/Mac)
         if: runner.os != 'Windows'
-        shell: bash
         run: |
           echo "[Run] Executing interpreter..."
           ./dist/slh || true
 
       - name: Generate ProofLedger
-        shell: bash
         run: |
           mkdir -p proof
           OUT="proof/proofledger-${{ runner.os }}.txt"
@@ -72,15 +73,16 @@ jobs:
           echo "" >> "$OUT"
           echo "[SHA256 Checksums]" >> "$OUT"
 
-          if command -v sha256sum >/dev/null 2>&1; then
-            sha256sum dist/* >> "$OUT" 2>/dev/null || true
-            sha256sum src/*.hs >> "$OUT" 2>/dev/null || true
-            sha256sum examples/* >> "$OUT" 2>/dev/null || true
-          else
-            shasum -a 256 dist/* >> "$OUT" 2>/dev/null || true
-            shasum -a 256 src/*.hs >> "$OUT" 2>/dev/null || true
-            shasum -a 256 examples/* >> "$OUT" 2>/dev/null || true
-          fi
+          # 파일이 있는 경우만 체크섬 생성 (완전 무결 패턴)
+          for f in dist/* src/*.hs examples/*; do
+            if [ -f "$f" ]; then
+              if command -v sha256sum >/dev/null 2>&1; then
+                sha256sum "$f" >> "$OUT"
+              else
+                shasum -a 256 "$f" >> "$OUT"
+              fi
+            fi
+          done
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
@@ -103,7 +105,7 @@ jobs:
       - name: Create Tag
         id: tag
         run: |
-          VERSION="v1.$(date +%Y%m%d%H%M%S)"
+          VERSION="v1.$(date +%Y%m%d%H%M%S)-${{ github.run_id }}"
           git tag "$VERSION"
           git push origin "$VERSION"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
@@ -116,7 +118,11 @@ jobs:
       - name: Create Unified ZIP
         run: |
           cd release
-          zip -r "Scala-like-Haskell-${{ steps.tag.outputs.version }}.zip" ./*
+          mkdir final
+          for d in */; do
+            mv "$d"/* final/ 2>/dev/null || true
+          done
+          zip -r "Scala-like-Haskell-${{ steps.tag.outputs.version }}.zip" ./final
 
       - name: Publish Release
         uses: softprops/action-gh-release@v1
@@ -125,10 +131,10 @@ jobs:
           name: "Scala-like-Haskell Release ${{ steps.tag.outputs.version }}"
           body: |
             ## Scala-like-Haskell Auto Release
-            ✔ 3OS Haskell Build OK  
+            ✔ 3OS Haskell Build (Ubuntu / macOS / Windows)  
             ✔ ProofLedger Generated  
-            ✔ Unified ZIP  
-            ✔ Infinite Loop Safe (tags-ignore)  
-            ✔ macOS ARM GHC 정상지원 (9.6.5)  
+            ✔ Unified ZIP Bundle  
+            ✔ Infinite Loop Safe (tags-ignore + unique tag)  
+            ✔ macOS ARM + Windows bash 완전 대응  
           files: |
             release/Scala-like-Haskell-${{ steps.tag.outputs.version }}.zip
